@@ -7,6 +7,7 @@ import axios from 'axios'
 import * as https from 'https'
 
 // MUST BE CALLED BEFORE APP IS READY
+app.disableHardwareAcceleration();
 app.commandLine.appendSwitch('ignore-certificate-errors');
 app.commandLine.appendSwitch('allow-insecure-localhost', 'true');
 
@@ -98,6 +99,16 @@ async function scrapeSite(url: string, query: string, siteName: string): Promise
       }
     });
 
+    // Block heavy resources to save memory and prevent GPU crashes
+    win.webContents.session.webRequest.onBeforeRequest({ urls: ['*://*/*'] }, (details, callback) => {
+      const type = details.resourceType;
+      if (['image', 'stylesheet', 'font', 'media'].includes(type)) {
+        callback({ cancel: true });
+      } else {
+        callback({ cancel: false });
+      }
+    });
+
     // Spoof User Agent to avoid detection
     win.webContents.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
 
@@ -107,7 +118,11 @@ async function scrapeSite(url: string, query: string, siteName: string): Promise
       if (!isResolved) {
         isResolved = true;
         console.log(`Timeout while scraping ${url}`);
-        if (!win.isDestroyed()) win.destroy();
+        if (win && !win.isDestroyed()) {
+        try {
+          win.destroy();
+        } catch (e) {}
+      }
         resolve([]);
       }
     }, 15000); // 15 seconds timeout to allow captcha bypass
@@ -118,7 +133,11 @@ async function scrapeSite(url: string, query: string, siteName: string): Promise
         if (!isResolved) {
           isResolved = true;
           clearTimeout(timeoutId);
-          if (!win.isDestroyed()) win.destroy();
+          if (win && !win.isDestroyed()) {
+        try {
+          win.destroy();
+        } catch (e) {}
+      }
           resolve([]);
         }
       });
@@ -127,7 +146,11 @@ async function scrapeSite(url: string, query: string, siteName: string): Promise
       if (!isResolved) {
         isResolved = true;
         clearTimeout(timeoutId);
-        if (!win.isDestroyed()) win.destroy();
+        if (win && !win.isDestroyed()) {
+        try {
+          win.destroy();
+        } catch (e) {}
+      }
         resolve([]);
       }
     }
@@ -225,7 +248,11 @@ async function scrapeSite(url: string, query: string, siteName: string): Promise
         if (!isResolved) {
           isResolved = true;
           clearTimeout(timeoutId);
-          if (!win.isDestroyed()) win.destroy();
+          if (win && !win.isDestroyed()) {
+        try {
+          win.destroy();
+        } catch (e) {}
+      }
           resolve(results);
         }
 
@@ -234,7 +261,11 @@ async function scrapeSite(url: string, query: string, siteName: string): Promise
         if (!isResolved) {
           isResolved = true;
           clearTimeout(timeoutId);
-          if (!win.isDestroyed()) win.destroy();
+          if (win && !win.isDestroyed()) {
+        try {
+          win.destroy();
+        } catch (e) {}
+      }
           resolve([]);
         }
       }
@@ -260,13 +291,26 @@ async function scrapeMagnetLinks(url: string): Promise<any[]> {
         webSecurity: false
       }
     });
+
+    win.webContents.session.webRequest.onBeforeRequest({ urls: ['*://*/*'] }, (details, callback) => {
+      const type = details.resourceType;
+      if (['image', 'stylesheet', 'font', 'media'].includes(type)) {
+        callback({ cancel: true });
+      } else {
+        callback({ cancel: false });
+      }
+    });
     win.webContents.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
 
     let isResolved = false;
     const timeoutId = setTimeout(() => {
       if (!isResolved) {
         isResolved = true;
-        if (!win.isDestroyed()) win.destroy();
+        if (win && !win.isDestroyed()) {
+        try {
+          win.destroy();
+        } catch (e) {}
+      }
         resolve([]);
       }
     }, 15000);
@@ -332,7 +376,11 @@ async function scrapeMagnetLinks(url: string): Promise<any[]> {
         if (!isResolved) {
           isResolved = true;
           clearTimeout(timeoutId);
-          if (!win.isDestroyed()) win.destroy();
+          if (win && !win.isDestroyed()) {
+        try {
+          win.destroy();
+        } catch (e) {}
+      }
           resolve(links);
         }
       } catch (error) {
