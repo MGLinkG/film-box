@@ -7,7 +7,6 @@ import axios from 'axios'
 import * as https from 'https'
 
 // MUST BE CALLED BEFORE APP IS READY
-app.disableHardwareAcceleration();
 app.commandLine.appendSwitch('ignore-certificate-errors');
 app.commandLine.appendSwitch('allow-insecure-localhost', 'true');
 
@@ -93,6 +92,7 @@ async function scrapeSite(url: string, query: string, siteName: string): Promise
       width: 1024,
       height: 768,
       webPreferences: {
+        partition: `scrape-${Date.now()}-${Math.random()}`,
         nodeIntegration: false,
         contextIsolation: true,
         webSecurity: false // Help bypass some strict CORS on scrape
@@ -286,6 +286,7 @@ async function scrapeMagnetLinks(url: string): Promise<any[]> {
       width: 1024,
       height: 768,
       webPreferences: {
+        partition: `scrape-${Date.now()}-${Math.random()}`,
         nodeIntegration: false,
         contextIsolation: true,
         webSecurity: false
@@ -500,7 +501,7 @@ app.whenReady().then(() => {
     let authRequiredSite: string | null = null;
 
     // Search all sites concurrently with a limit to prevent OOM / black screen
-    const concurrencyLimit = 5;
+    const concurrencyLimit = 3;
     const queue = [...sites];
 
     const worker = async () => {
