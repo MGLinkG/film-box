@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, ipcMain, session } from 'electron'
+import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
@@ -6,12 +6,13 @@ import * as cheerio from 'cheerio'
 import axios from 'axios'
 import * as https from 'https'
 import { setupDownloader } from './downloader'
+import { setupLocalLibrary } from './localLibrary'
 
 // MUST BE CALLED BEFORE APP IS READY
 app.commandLine.appendSwitch('ignore-certificate-errors')
 app.commandLine.appendSwitch('allow-insecure-localhost', 'true')
 
-app.on('certificate-error', (event, webContents, url, error, certificate, callback) => {
+app.on('certificate-error', (event, _webContents, _url, _error, _certificate, callback) => {
   // On certificate error we disable default behavior (stop loading the page)
   // and we then say "it is all fine - true" to the callback
   event.preventDefault()
@@ -462,6 +463,7 @@ function createWindow(): void {
   }
 
   setupDownloader(mainWindow)
+  setupLocalLibrary()
 }
 
 // This method will be called when Electron has finished

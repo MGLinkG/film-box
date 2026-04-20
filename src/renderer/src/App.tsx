@@ -8,24 +8,21 @@ import {
   X,
   Globe,
   LogIn,
-  Plus,
-  ListPlus,
   ExternalLink,
   Copy,
   Check,
   Info,
   Compass,
   RefreshCw,
-  Upload,
-  Download,
   DownloadCloud,
   PlayCircle,
   PauseCircle,
   Trash2,
   Heart,
-  HeartOff,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  FolderOpen,
+  Folder
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
@@ -34,7 +31,8 @@ const CHANNELS = [
   { label: '剧集', value: '2' },
   { label: '综艺', value: '3' },
   { label: '动漫', value: '4' },
-  { label: '短剧', value: '30' }
+  { label: '短剧', value: '30' },
+  { label: '伦理', value: '23' }
 ]
 
 const GENRES = [
@@ -59,7 +57,10 @@ const GENRES = [
   '奇幻',
   '冒险',
   '灾难',
-  '武侠'
+  '武侠',
+  '伦理',
+  '情色',
+  'R18'
 ]
 const YEARS = [
   '全部',
@@ -98,7 +99,6 @@ const REGIONS = [
   '东南亚地区',
   '其他'
 ]
-const LANGUAGES = ['全部', '国语', '英语', '粤语', '闽南语', '韩语', '日语', '法语', '德语', '其他']
 const SORTS = [
   { label: '最近更新', value: 'time' },
   { label: '最多播放', value: 'hits' },
@@ -107,9 +107,9 @@ const SORTS = [
 
 export default function App() {
   const { t, i18n } = useTranslation()
-  const [activeTab, setActiveTab] = useState<'discover' | 'favorites' | 'downloads' | 'settings'>(
-    'discover'
-  )
+  const [activeTab, setActiveTab] = useState<
+    'discover' | 'favorites' | 'local' | 'downloads' | 'settings'
+  >('discover')
 
   // Favorites State
   const [favorites, setFavorites] = useState<any[]>(() => {
@@ -126,6 +126,131 @@ export default function App() {
     localStorage.setItem('movie_favorites', JSON.stringify(favorites))
   }, [favorites])
 
+  const [localPaths, setLocalPaths] = useState<string[]>(() => {
+    const saved = localStorage.getItem('movie_local_paths')
+    if (saved) {
+      try {
+        return JSON.parse(saved)
+      } catch {}
+    }
+    return []
+  })
+
+  const [localBindings, setLocalBindings] = useState<Record<string, string>>(() => {
+    const saved = localStorage.getItem('movie_local_bindings')
+    if (saved) {
+      try {
+        return JSON.parse(saved)
+      } catch {}
+    }
+    return {}
+  })
+  const localBindingsRef = useRef<Record<string, string>>({})
+
+  const [localSeries, setLocalSeries] = useState<
+    { id: string; title: string; folderPath: string; episodes: number[]; fileCount: number }[]
+  >([])
+
+  const [localMissingMap, setLocalMissingMap] = useState<
+    Record<string, { loading: boolean; missing: { name: string; urls: string[] }[] }>
+  >({})
+
+  useEffect(() => {
+    localStorage.setItem('movie_local_paths', JSON.stringify(localPaths))
+  }, [localPaths])
+
+  useEffect(() => {
+    localStorage.setItem('movie_local_bindings', JSON.stringify(localBindings))
+  }, [localBindings])
+  useEffect(() => {
+    localBindingsRef.current = localBindings
+  }, [localBindings])
+
+  const parseEpisodeFromName = (name: string): number | null => {
+    const m1 = name.match(/第\s*0*([0-9]{1,4})\s*集/)
+    if (m1) return Number(m1[1])
+    const m2 = name.match(/S[0-9]{1,2}E\s*0*([0-9]{1,4})/i)
+    if (m2) return Number(m2[1])
+    const m3 = name.match(/\bEP?\s*0*([0-9]{1,4})\b/i)
+    if (m3) return Number(m3[1])
+    const m4 = name.match(/\bE\s*0*([0-9]{1,4})\b/i)
+    if (m4) return Number(m4[1])
+    return null
+  }
+
+  const refreshLocalLibrary = useCallback(async () => {
+    if (localPaths.length === 0) {
+      setLocalSeries([])
+      return
+    }
+    try {
+      // @ts-ignore
+      const res = await window.api.scanLocalLibrary(localPaths)
+      setLocalSeries(res)
+
+      for (const s of res) {
+        const folderPath = s.folderPath
+        if (!folderPath) continue
+        const exists = localBindingsRef.current[folderPath]
+        if (exists) continue
+        try {
+          // @ts-ignore
+          const searchRes = await window.api.searchSites(s.title)
+          const first = searchRes?.results?.[0]
+          if (first?.url) {
+            setLocalBindings((prev) => {
+              if (prev[folderPath]) return prev
+              return { ...prev, [folderPath]: first.url }
+            })
+          }
+        } catch {}
+      }
+    } catch (e) {
+      console.error(e)
+      setLocalSeries([])
+    }
+  }, [localPaths])
+
+  const checkLocalMissing = useCallback(
+    async (series: { folderPath: string; episodes: number[] }) => {
+      const movieUrl = localBindings[series.folderPath]
+      if (!movieUrl) return
+
+      setLocalMissingMap((prev) => ({
+        ...prev,
+        [series.folderPath]: { loading: true, missing: prev[series.folderPath]?.missing || [] }
+      }))
+
+      try {
+        // @ts-ignore
+        const { onlineLinks } = await window.api.fetchMovieDetails(movieUrl)
+        const localSet = new Set(series.episodes)
+        const missing = (onlineLinks as { name: string; urls: string[] }[]).filter((l) => {
+          const ep = parseEpisodeFromName(l.name)
+          if (!ep) return false
+          return !localSet.has(ep)
+        })
+        setLocalMissingMap((prev) => ({
+          ...prev,
+          [series.folderPath]: { loading: false, missing }
+        }))
+      } catch (e) {
+        console.error(e)
+        setLocalMissingMap((prev) => ({
+          ...prev,
+          [series.folderPath]: { loading: false, missing: prev[series.folderPath]?.missing || [] }
+        }))
+      }
+    },
+    [localBindings]
+  )
+
+  useEffect(() => {
+    if (activeTab === 'local') {
+      refreshLocalLibrary()
+    }
+  }, [activeTab, refreshLocalLibrary])
+
   const toggleFavorite = (movie: any, e?: React.MouseEvent) => {
     if (e) e.stopPropagation()
     setFavorites((prev) => {
@@ -138,7 +263,7 @@ export default function App() {
     })
   }
 
-  // Downloads State
+    // Downloads State
   const [downloads, setDownloads] = useState<
     {
       id: string
@@ -146,8 +271,10 @@ export default function App() {
       name: string
       poster?: string
       progress: number
+      speed?: string
       status: string
       error?: string
+      filePath?: string
     }[]
   >([])
   const [expandedDownloadGroups, setExpandedDownloadGroups] = useState<Record<string, boolean>>({})
@@ -218,28 +345,39 @@ export default function App() {
     })
   }, [])
 
-  const handleStartDownload = async (link: { name: string; url: string }) => {
-    const movieTitle = selectedMovie.titleZh || selectedMovie.title
-    const moviePoster = selectedMovie.poster
+  const handleStartDownload = async (
+    link: { name: string; urls: string[] },
+    folderPath?: string,
+    skipNavigation?: boolean,
+    overrideTitle?: string,
+    overridePoster?: string
+  ) => {
+    const movieTitle =
+      overrideTitle || selectedMovie?.titleZh || selectedMovie?.title || '未命名'
+    const moviePoster = overridePoster || selectedMovie?.poster
     // @ts-ignore
-    const res = await window.api.startDownload({
-      playUrl: link.url,
-      name: link.name,
-      title: movieTitle
-    })
-    if (res.success) {
-      setDownloads((prev) => [
-        ...prev,
-        {
-          id: res.downloadId,
-          title: movieTitle,
+        const res = await window.api.startDownload({
+          playUrls: link.urls,
           name: link.name,
-          poster: moviePoster,
-          progress: 0,
-          status: 'parsing'
-        }
-      ])
-      setActiveTab('downloads')
+          title: movieTitle,
+          folderPath
+        })
+        if (res.success) {
+          setDownloads((prev) => [
+            ...prev,
+            {
+              id: res.downloadId || Date.now().toString(),
+              title: movieTitle,
+              name: link.name,
+              poster: moviePoster,
+              progress: 0,
+              status: 'parsing',
+              filePath: res.finalFilePath
+            }
+          ])
+      if (!skipNavigation) {
+        setActiveTab('downloads')
+      }
     } else {
       if (res.error !== '已取消') {
         alert(`下载失败：${res.error}`)
@@ -250,11 +388,17 @@ export default function App() {
   const handleDownloadAll = async () => {
     if (onlineLinks.length === 0) return
 
+    // @ts-ignore
+    const folderPath = await window.api.selectFolder()
+    if (!folderPath) return
+
     // Give user a feedback immediately
-    alert(`准备开始下载 ${onlineLinks.length} 个任务，请依次选择保存位置。`)
+    alert(`已选择保存目录，准备开始下载 ${onlineLinks.length} 个任务...`)
+
+    setActiveTab('downloads')
 
     for (const link of onlineLinks) {
-      await handleStartDownload(link)
+      await handleStartDownload(link, folderPath, true)
     }
   }
   const [query, setQuery] = useState('')
@@ -265,9 +409,7 @@ export default function App() {
   const [showLoginPrompt, setShowLoginPrompt] = useState(false)
   const [activeBrowserUrl, setActiveBrowserUrl] = useState<string | null>(null)
 
-  const [copiedUrl, setCopiedUrl] = useState<string | null>(null)
-
-  // Magnet Links Modal State
+  // Removed copiedUrl state and handleCopyUrl function
   const [selectedMovie, setSelectedMovie] = useState<any>(null)
   const [resourceLinks, setResourceLinks] = useState<{ title: string; url: string }[]>([])
   const [isLoadingLinks, setIsLoadingLinks] = useState(false)
@@ -365,13 +507,9 @@ export default function App() {
     handleFetchDiscoverMovies
   ])
 
-  const handleCopyUrl = (url: string) => {
-    navigator.clipboard.writeText(url)
-    setCopiedUrl(url)
-    setTimeout(() => setCopiedUrl(null), 2000)
-  }
+  // Removed handleCopyUrl definition
 
-  const [onlineLinks, setOnlineLinks] = useState<{ name: string; url: string }[]>([])
+  const [onlineLinks, setOnlineLinks] = useState<{ name: string; urls: string[] }[]>([])
 
   const handleMovieClick = (movie: any) => {
     setSelectedMovie(movie)
@@ -456,6 +594,17 @@ export default function App() {
           >
             <Heart size={18} />
             我的收藏
+          </button>
+          <button
+            onClick={() => setActiveTab('local')}
+            className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
+              activeTab === 'local'
+                ? 'bg-white/10 text-white'
+                : 'text-secondary hover:text-white hover:bg-white/5'
+            }`}
+          >
+            <Folder size={18} />
+            本地资源
           </button>
           <button
             onClick={() => setActiveTab('downloads')}
@@ -621,16 +770,6 @@ export default function App() {
                         {movie.title !== movie.titleZh && movie.titleZh && (
                           <p className="text-[10px] text-white/50 mb-2 truncate">{movie.title}</p>
                         )}
-                        <div className="mt-auto pt-2 flex gap-1.5 flex-wrap">
-                          {movie.tags.map((tag: string) => (
-                            <span
-                              key={tag}
-                              className="px-1.5 py-0.5 bg-white/5 border border-white/5 rounded text-[9px] text-secondary truncate max-w-full"
-                            >
-                              {tag}
-                            </span>
-                          ))}
-                        </div>
                       </div>
                     </motion.button>
                   ))
@@ -802,16 +941,6 @@ export default function App() {
                             ? movie.titleZh || movie.title
                             : movie.title}
                         </h3>
-                        <div className="mt-auto pt-2 flex gap-1.5 flex-wrap">
-                          {movie.tags.map((tag: string) => (
-                            <span
-                              key={tag}
-                              className="px-1.5 py-0.5 bg-white/5 border border-white/5 rounded text-[9px] text-secondary truncate max-w-full"
-                            >
-                              {tag}
-                            </span>
-                          ))}
-                        </div>
                       </div>
                     </motion.button>
                   ))}
@@ -1121,19 +1250,196 @@ export default function App() {
                           ? movie.titleZh || movie.title
                           : movie.title}
                       </h3>
-                      <div className="mt-auto pt-2 flex gap-1.5 flex-wrap">
-                        {movie.tags.map((tag: string) => (
-                          <span
-                            key={tag}
-                            className="px-1.5 py-0.5 bg-white/5 border border-white/5 rounded text-[9px] text-secondary truncate max-w-full"
-                          >
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
                     </div>
                   </motion.button>
                 ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div
+          className={`flex-1 overflow-y-auto p-8 lg:p-12 ${activeTab === 'local' ? 'block' : 'hidden'}`}
+        >
+          <div className="max-w-6xl mx-auto space-y-8">
+            <div className="flex items-center justify-between">
+              <h2 className="text-3xl font-bold tracking-tight">本地资源</h2>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={async () => {
+                    // @ts-ignore
+                    const folderPath = await window.api.selectFolder()
+                    if (!folderPath) return
+                    if (!localPaths.includes(folderPath)) {
+                      setLocalPaths((prev) => [...prev, folderPath])
+                    }
+                    await refreshLocalLibrary()
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-secondary hover:text-white bg-white/5 hover:bg-white/10 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                >
+                  <Folder size={16} />
+                  添加路径
+                </button>
+                <button
+                  onClick={refreshLocalLibrary}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-secondary hover:text-white bg-white/5 hover:bg-white/10 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                >
+                  <RefreshCw size={16} />
+                  重新扫描
+                </button>
+              </div>
+            </div>
+
+            {localPaths.length > 0 && (
+              <div className="bg-surface rounded-xl border border-white/5 p-4">
+                <div className="text-sm text-secondary mb-3">已添加路径</div>
+                <div className="flex flex-col gap-2">
+                  {localPaths.map((p) => (
+                    <div
+                      key={p}
+                      className="flex items-center justify-between gap-3 bg-white/5 border border-white/5 rounded-lg px-3 py-2"
+                    >
+                      <div className="text-xs text-white/80 font-mono truncate">{p}</div>
+                      <button
+                        onClick={() => {
+                          setLocalPaths((prev) => prev.filter((x) => x !== p))
+                          setLocalBindings((prev) => {
+                            const next = { ...prev }
+                            delete next[p]
+                            return next
+                          })
+                          setLocalMissingMap((prev) => {
+                            const next = { ...prev }
+                            delete next[p]
+                            return next
+                          })
+                        }}
+                        className="px-2 py-1 text-xs text-secondary hover:text-danger bg-white/5 hover:bg-white/10 rounded transition-colors"
+                      >
+                        移除
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {localSeries.length === 0 ? (
+              <div className="p-16 flex flex-col items-center justify-center text-secondary bg-surface rounded-xl border border-white/5 shadow-sm">
+                <Folder size={48} className="opacity-20 mb-4" />
+                <p>还没有扫描到本地视频文件</p>
+                <p className="text-xs mt-2 opacity-70">提示：建议按“剧名/第01集.mp4”的方式命名</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {localSeries.map((s) => {
+                  const bindUrl = localBindings[s.folderPath] || ''
+                  const missingInfo = localMissingMap[s.folderPath]
+                  const missingCount = missingInfo?.missing?.length || 0
+                  const localMax = s.episodes.length > 0 ? Math.max(...s.episodes) : 0
+                  const localMin = s.episodes.length > 0 ? Math.min(...s.episodes) : 0
+
+                  return (
+                    <div
+                      key={s.id}
+                      className="bg-surface rounded-xl border border-white/5 overflow-hidden"
+                    >
+                      <div className="p-5 border-b border-white/5 flex items-center justify-between gap-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3">
+                            <h3 className="text-lg font-bold text-white">{s.title}</h3>
+                            <span className="text-xs text-secondary bg-white/5 px-2 py-0.5 rounded-full">
+                              文件 {s.fileCount}
+                            </span>
+                            <span className="text-xs text-secondary bg-white/5 px-2 py-0.5 rounded-full">
+                              识别集数 {s.episodes.length > 0 ? `${localMin}-${localMax}` : '未知'}
+                            </span>
+                            {missingCount > 0 && (
+                              <span className="text-xs text-danger bg-danger/10 border border-danger/20 px-2 py-0.5 rounded-full">
+                                缺 {missingCount} 集
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-xs text-secondary mt-2 font-mono truncate">
+                            {s.folderPath}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            onClick={() => checkLocalMissing(s)}
+                            className="px-3 py-2 text-xs font-medium text-white bg-accent hover:bg-accent/90 rounded-lg transition-colors"
+                          >
+                            检测缺集
+                          </button>
+                          {missingCount > 0 && (
+                            <button
+                              onClick={async () => {
+                                setActiveTab('downloads')
+                                for (const link of missingInfo.missing) {
+                                  await handleStartDownload(
+                                    link,
+                                    s.folderPath,
+                                    true,
+                                    s.title,
+                                    undefined
+                                  )
+                                }
+                              }}
+                              className="px-3 py-2 text-xs font-medium text-secondary hover:text-white bg-white/5 hover:bg-white/10 rounded-lg transition-colors"
+                            >
+                              一键补全
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="p-5 space-y-3">
+                        <div className="text-sm text-secondary">绑定网站剧集页面 URL（用于对比缺集）</div>
+                        <div className="flex gap-2">
+                          <input
+                            value={bindUrl}
+                            onChange={(e) => {
+                              const v = e.target.value
+                              setLocalBindings((prev) => ({ ...prev, [s.folderPath]: v }))
+                            }}
+                            placeholder="例如：https://www.pdy3.com/mv/475172.html"
+                            className="flex-1 bg-black/30 border border-white/10 rounded px-3 py-2 text-sm text-white/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                          />
+                          <button
+                            onClick={() => checkLocalMissing(s)}
+                            className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm text-white transition-colors"
+                          >
+                            对比
+                          </button>
+                        </div>
+
+                        {missingInfo?.loading && (
+                          <div className="text-xs text-secondary">正在对比并计算缺少集数…</div>
+                        )}
+
+                        {!missingInfo?.loading && missingCount > 0 && (
+                          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 pt-2">
+                            {missingInfo.missing.map((link, idx) => (
+                              <button
+                                key={`${s.id}-miss-${idx}`}
+                                onClick={() => {
+                                  setActiveTab('downloads')
+                                  handleStartDownload(link, s.folderPath, true, s.title, undefined)
+                                }}
+                                className="p-3 bg-white/5 border border-white/5 rounded-xl hover:border-accent/50 hover:bg-accent/10 transition-colors flex items-center justify-between group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                              >
+                                <span className="text-sm font-medium text-white/90 truncate">
+                                  {link.name}
+                                </span>
+                                <DownloadCloud size={16} className="text-secondary group-hover:text-accent" />
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             )}
           </div>
@@ -1188,8 +1494,10 @@ export default function App() {
                   {Object.entries(groupedDownloads).map(([title, groupDls]) => {
                     const isExpanded = expandedDownloadGroups[title] !== false // Default true
                     const totalProgress =
-                      groupDls.reduce((acc, dl) => acc + dl.progress, 0) / groupDls.length
-                    const allCompleted = groupDls.every((dl) => dl.status === 'completed')
+                        groupDls.reduce((acc, dl) => acc + dl.progress, 0) / groupDls.length
+                      const totalSpeed =
+                        groupDls.reduce((acc, dl) => acc + (dl.status === 'downloading' && dl.speed ? parseFloat(dl.speed) : 0), 0)
+                      const allCompleted = groupDls.every((dl) => dl.status === 'completed')
                     const hasError = groupDls.some((dl) => dl.status === 'error')
                     const firstPoster = groupDls[0]?.poster
 
@@ -1221,15 +1529,18 @@ export default function App() {
                               </h4>
                               <div className="mt-2 flex items-center gap-3">
                                 <div className="flex-1 max-w-xs h-1.5 bg-white/10 rounded-full overflow-hidden">
-                                  <div
-                                    className={`h-full ${allCompleted ? 'bg-green-500' : hasError ? 'bg-red-500' : 'bg-accent'}`}
-                                    style={{ width: `${totalProgress}%` }}
-                                  />
+                                    <div
+                                      className={`h-full ${allCompleted ? 'bg-green-500' : hasError ? 'bg-red-500' : 'bg-accent'}`}
+                                      style={{ width: `${totalProgress}%` }}
+                                    />
+                                  </div>
+                                  <span className="text-xs text-secondary font-mono flex items-center gap-2">
+                                    <span>{Math.round(totalProgress)}%</span>
+                                    {totalSpeed > 0 && (
+                                      <span className="text-accent/80">{totalSpeed.toFixed(1)} M/s</span>
+                                    )}
+                                  </span>
                                 </div>
-                                <span className="text-xs text-secondary font-mono">
-                                  {Math.round(totalProgress)}%
-                                </span>
-                              </div>
                             </div>
                           </div>
                           <div className="flex items-center gap-1">
@@ -1306,18 +1617,21 @@ export default function App() {
                                           dl.status === 'aborted' ||
                                           dl.status === 'paused') && (
                                           <div className="flex items-center gap-3">
-                                            <div className="h-1 w-full max-w-[200px] bg-white/10 rounded-full overflow-hidden">
-                                              <motion.div
-                                                className={`h-full ${dl.status === 'completed' ? 'bg-green-500' : dl.status === 'error' || dl.status === 'aborted' ? 'bg-secondary' : dl.status === 'paused' ? 'bg-yellow-500' : 'bg-accent'}`}
-                                                initial={{ width: 0 }}
-                                                animate={{ width: `${dl.progress}%` }}
-                                                transition={{ duration: 0.3 }}
-                                              />
+                                              <div className="h-1 w-full max-w-[200px] bg-white/10 rounded-full overflow-hidden">
+                                                <motion.div
+                                                  className={`h-full ${dl.status === 'completed' ? 'bg-green-500' : (dl.status as string) === 'error' || dl.status === 'aborted' ? 'bg-secondary' : dl.status === 'paused' ? 'bg-yellow-500' : 'bg-accent'}`}
+                                                  initial={{ width: 0 }}
+                                                  animate={{ width: `${dl.progress}%` }}
+                                                  transition={{ duration: 0.3 }}
+                                                />
+                                              </div>
+                                              <span className="text-[10px] text-secondary font-mono flex items-center gap-2">
+                                                <span>{dl.progress}%</span>
+                                                {dl.status === 'downloading' && dl.speed && (
+                                                  <span className="text-accent/80">{dl.speed} M/s</span>
+                                                )}
+                                              </span>
                                             </div>
-                                            <span className="text-[10px] text-secondary font-mono">
-                                              {dl.progress}%
-                                            </span>
-                                          </div>
                                         )}
 
                                         {dl.status === 'error' && dl.error && (
@@ -1326,6 +1640,19 @@ export default function App() {
                                       </div>
 
                                       <div className="flex items-center gap-2 shrink-0">
+                                        {dl.status === 'completed' && dl.filePath && (
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              // @ts-ignore
+                                              window.api.showItemInFolder(dl.filePath)
+                                            }}
+                                            className="p-1.5 text-secondary hover:text-white bg-white/5 hover:bg-white/10 rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                                            title="打开所在文件夹"
+                                          >
+                                            <FolderOpen size={16} />
+                                          </button>
+                                        )}
                                         {(dl.status === 'downloading' ||
                                           dl.status === 'paused') && (
                                           <button
@@ -1489,7 +1816,7 @@ export default function App() {
                   src={activeBrowserUrl}
                   className="w-full h-full border-none bg-white"
                   title="Embedded Browser"
-                  allowpopups="true"
+                  {...({ allowpopups: 'true' } as any)}
                 />
               </div>
             </motion.div>

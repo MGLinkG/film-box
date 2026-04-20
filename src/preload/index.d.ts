@@ -7,16 +7,24 @@ declare global {
       searchSites: (query: string) => Promise<{ results: any[]; authRequired: string | null }>
       fetchMagnetLinks: (url: string) => Promise<{ title: string; url: string }[]>
       fetchDiscoverMovies: (filters: any) => Promise<any[]>
-      fetchMovieDetails: (url: string) => Promise<{ onlineLinks: any[]; magnetLinks: any[] }>
+      fetchMovieDetails: (
+        url: string
+      ) => Promise<{ onlineLinks: { name: string; urls: string[] }[]; magnetLinks: any[] }>
+      scanLocalLibrary: (
+        paths: string[]
+      ) => Promise<{ id: string; title: string; folderPath: string; episodes: number[]; fileCount: number }[]>
+      selectFolder: () => Promise<string | null>
       startDownload: (params: {
-        playUrl: string
+        playUrls: string[]
         name: string
         title: string
-      }) => Promise<{ success: boolean; error?: string; downloadId?: string }>
+        folderPath?: string
+      }) => Promise<{ success: boolean; error?: string; downloadId?: string; finalFilePath?: string }>
       abortDownload: (id: string) => Promise<boolean>
       pauseDownload: (id: string) => Promise<boolean>
       resumeDownload: (id: string) => Promise<boolean>
       cancelDownload: (id: string) => Promise<boolean>
+      showItemInFolder: (path: string) => void
       onDownloadProgress: (callback: (data: any) => void) => void
     }
   }

@@ -1,128 +1,10 @@
-import { ipcMain, dialog, shell } from 'electron'
-import * as fs from 'fs'
-import * as path from 'path'
-import axios from 'axios'
-import * as cheerio from 'cheerio'
-import * as https from 'https'
-import { URL } from 'url'
-import * as crypto from 'crypto'
-import { Parser } from 'm3u8-parser'
+const fs = require('fs');
 
-const httpsAgent = new https.Agent({ rejectUnauthorized: false })
+let content = fs.readFileSync('src/main/downloader.ts', 'utf8');
 
-export const activeDownloads = new Map<string, any>()
+const oldFuncRegex = /async function startM3u8Download\([\s\S]*?\n\}\n\nipcMain.handle\('pause-download'/;
 
-async function getM3u8Url(playUrl: string): Promise<string | null> {
-  try {
-    const { data: playHtml } = await axios.get(playUrl, {
-      httpsAgent,
-      headers: { 'User-Agent': 'Mozilla/5.0' }
-    })
-    const $ = cheerio.load(playHtml)
-    const scriptContent = $('script')
-      .filter((_, el) => {
-        return !!($(el).html()?.includes('player_aaaa'))
-      })
-      .html()
-
-    if (scriptContent) {
-      let jsonStr = scriptContent.split('var player_aaaa=')[1]
-      jsonStr = jsonStr.split('var mac_')[0].trim()
-      if (jsonStr.endsWith(';')) jsonStr = jsonStr.slice(0, -1)
-      return JSON.parse(jsonStr).url
-    }
-  } catch (err) {
-    console.error('Failed to get m3u8 url:', err)
-  }
-  return null
-}
-
-export function setupDownloader(mainWindow: Electron.BrowserWindow) {
-  ipcMain.handle('fetch-movie-details', async (_, movieUrl: string) => {
-    try {
-      const { data: detailHtml } = await axios.get(movieUrl, {
-        httpsAgent,
-        headers: { 'User-Agent': 'Mozilla/5.0' }
-      })
-      const $ = cheerio.load(detailHtml)
-
-      const episodeMap = new Map<string, string[]>()
-      const onlineLinks: { name: string; urls: string[] }[] = []
-
-      $('ul.ewave-playlist-content').each((_, ul) => {
-        $(ul)
-          .find('li a')
-          .each((_, el) => {
-            const name = $(el).text().trim()
-            const url = movieUrl.startsWith('http')
-              ? new URL($(el).attr('href') || '', movieUrl).href
-              : $(el).attr('href') || ''
-
-            if (!episodeMap.has(name)) {
-              episodeMap.set(name, [url])
-              onlineLinks.push({ name, urls: [url] })
-            } else {
-              episodeMap.get(name)!.push(url)
-            }
-          })
-      })
-
-      // Try to get magnet links if any
-      const magnetLinks: { title: string; url: string }[] = []
-      $('a[href^="magnet:"]').each((_, el) => {
-        magnetLinks.push({
-          title: $(el).text().trim() || 'Magnet Link',
-          url: $(el).attr('href') || ''
-        })
-      })
-
-      return { onlineLinks, magnetLinks }
-    } catch (e) {
-      console.error(e)
-      return { onlineLinks: [], magnetLinks: [] }
-    }
-  })
-
-  ipcMain.handle('select-folder', async () => {
-    const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
-      title: '选择下载保存目录',
-      properties: ['openDirectory', 'createDirectory']
-    })
-    if (canceled || filePaths.length === 0) return null
-    return filePaths[0]
-  })
-
-  ipcMain.handle('show-item-in-folder', (_, filePath: string) => {
-    shell.showItemInFolder(filePath)
-  })
-
-  ipcMain.handle('start-download', async (_event, { playUrls, name, title, folderPath }) => {
-    let finalFilePath = ''
-    if (folderPath) {
-      // Sanitize filenames for OS
-      const safeTitle = title.replace(/[\\/:*?"<>|]/g, '')
-      const safeName = name.replace(/[\\/:*?"<>|]/g, '')
-      finalFilePath = path.join(folderPath, `${safeTitle}_${safeName}.mp4`)
-    } else {
-      const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
-        title: '保存视频',
-        defaultPath: `${title}_${name}.mp4`,
-        filters: [{ name: '视频文件', extensions: ['mp4', 'ts', 'mkv'] }]
-      })
-      if (canceled || !filePath) return { success: false, error: '已取消' }
-      finalFilePath = filePath
-    }
-
-    const downloadId = Date.now().toString() + Math.random().toString(36).substring(7)
-
-    // Start download process asynchronously
-    startM3u8Download(downloadId, playUrls, finalFilePath, mainWindow).catch(console.error)
-
-    return { success: true, downloadId, finalFilePath }
-  })
-}
-
-async function startM3u8Download(
+const newFunc = `async function startM3u8Download(
   id: string,
   playUrls: string[],
   filePath: string,
@@ -139,7 +21,7 @@ async function startM3u8Download(
         id, 
         status: 'parsing', 
         progress: 0, 
-        error: sourceIdx > 0 ? `尝试备用源 ${sourceIdx + 1}...` : undefined 
+        error: sourceIdx > 0 ? \`尝试备用源 \${sourceIdx + 1}...\` : undefined 
       })
       
       let m3u8Url = await getM3u8Url(playUrl)
@@ -273,7 +155,7 @@ async function startM3u8Download(
       return // Success, exit function
       
     } catch (error: any) {
-      console.error(`Download error on source ${sourceIdx}:`, error)
+      console.error(\`Download error on source \${sourceIdx}:\`, error)
       lastError = error
       // If we reach here, this source failed. We loop to the next source.
     }
@@ -284,29 +166,7 @@ async function startM3u8Download(
   activeDownloads.delete(id)
 }
 
-ipcMain.handle('pause-download', (_, id: string) => {
-  const dl = activeDownloads.get(id)
-  if (dl) {
-    dl.paused = true
-    return true
-  }
-  return false
-})
+ipcMain.handle('pause-download'`;
 
-ipcMain.handle('resume-download', (_, id: string) => {
-  const dl = activeDownloads.get(id)
-  if (dl) {
-    dl.paused = false
-    return true
-  }
-  return false
-})
-
-ipcMain.handle('cancel-download', (_, id: string) => {
-  const dl = activeDownloads.get(id)
-  if (dl) {
-    dl.abort = true
-    return true
-  }
-  return false
-})
+content = content.replace(oldFuncRegex, newFunc);
+fs.writeFileSync('src/main/downloader.ts', content, 'utf8');

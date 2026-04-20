@@ -7,12 +7,15 @@ const api = {
   fetchMagnetLinks: (url: string) => ipcRenderer.invoke('fetch-magnet-links', url),
   fetchDiscoverMovies: (filters: any) => ipcRenderer.invoke('fetch-discover-movies', filters),
   fetchMovieDetails: (url: string) => ipcRenderer.invoke('fetch-movie-details', url),
-  startDownload: (params: { playUrl: string; name: string; title: string }) =>
+  scanLocalLibrary: (paths: string[]) => ipcRenderer.invoke('scan-local-library', paths),
+  selectFolder: () => ipcRenderer.invoke('select-folder'),
+  startDownload: (params: { playUrls: string[]; name: string; title: string; folderPath?: string }) =>
     ipcRenderer.invoke('start-download', params),
   abortDownload: (id: string) => ipcRenderer.invoke('abort-download', id),
   pauseDownload: (id: string) => ipcRenderer.invoke('pause-download', id),
   resumeDownload: (id: string) => ipcRenderer.invoke('resume-download', id),
   cancelDownload: (id: string) => ipcRenderer.invoke('cancel-download', id),
+  showItemInFolder: (path: string) => ipcRenderer.invoke('show-item-in-folder', path),
   onDownloadProgress: (callback: (data: any) => void) => {
     ipcRenderer.on('download-progress', (_event, value) => callback(value))
   }

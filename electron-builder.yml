@@ -13,6 +13,12 @@ asarUnpack:
   - resources/**
 win:
   executableName: MovieFinder
+  target:
+    - target: nsis
+      arch:
+        - x64
+        - arm64
+        - ia32
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}
