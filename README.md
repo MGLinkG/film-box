@@ -63,6 +63,11 @@ npm run build:linux
 3. **免责条款**：使用者下载、运行或二次开发本项目即表示您已同意：**因使用本项目所产生的一切直接或间接的法律责任、版权纠纷及其他后果，均由使用者本人独立承担，项目原作者不承担任何责任。**
 4. 若本项目在无意中侵犯了您的合法权益，请提交 Issue，我们将在核实后尽快删除相关功能代码。
 
----
+## 📄 开源协议 (License)
 
-_Created for personal learning and open-source sharing._
+本项目基于 [MIT License](LICENSE) 协议开源。
+
+您可以在遵守上述免责声明的前提下，自由地使用、修改和分发本项目的源代码。但请注意，开源协议并不意味着授予您利用本项目从事任何违法、侵权或商业牟利活动的权利。
+
+---
+*Created for personal learning and open-source sharing.*sharing._
