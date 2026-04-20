@@ -212,6 +212,14 @@ async function scrapeSite(url: string, query: string, siteName: string): Promise
             ) {
               const fullUrl = href.startsWith('http') ? href : new URL(href, currentUrl).toString()
               if (!results.find((r) => r.url === fullUrl)) {
+                const tagsStr = $(el).find('.item-status, .text-muted, .module-item-text').text().trim()
+                const extraTags = tagsStr
+                  ? tagsStr
+                      .split('/')
+                      .map((s) => s.trim())
+                      .filter(Boolean)
+                      .slice(0, 4)
+                  : []
                 results.push({
                   id: `${url}-${i}`,
                   title: titleText,
@@ -224,7 +232,7 @@ async function scrapeSite(url: string, query: string, siteName: string): Promise
                         ? new URL(poster, currentUrl).toString()
                         : '',
                   url: fullUrl,
-                  tags: [siteName]
+                  tags: [siteName, ...extraTags]
                 })
               }
             }
@@ -266,6 +274,18 @@ async function scrapeSite(url: string, query: string, siteName: string): Promise
                   ? href
                   : new URL(href, currentUrl).toString()
                 if (!results.find((r) => r.url === fullUrl)) {
+                  const tagsStr = $(el)
+                    .closest('li, .module-item, .stui-vodlist__item, .stui-vodlist__box')
+                    .find('.item-status, .text-muted, .module-item-text')
+                    .text()
+                    .trim()
+                  const extraTags = tagsStr
+                    ? tagsStr
+                        .split('/')
+                        .map((s) => s.trim())
+                        .filter(Boolean)
+                        .slice(0, 4)
+                    : []
                   results.push({
                     id: `${url}-${i}`,
                     title: titleText,
@@ -278,7 +298,7 @@ async function scrapeSite(url: string, query: string, siteName: string): Promise
                           ? new URL(poster, currentUrl).toString()
                           : '',
                     url: fullUrl,
-                    tags: [siteName]
+                    tags: [siteName, ...extraTags]
                   })
                 }
               }
@@ -502,6 +522,47 @@ app.whenReady().then(() => {
     return {
       results: allResults,
       authRequired: null
+    }
+  })
+
+  ipcMain.handle('fetch-movie-meta', async (_, url: string) => {
+    try {
+      const { data: html } = await axios.get(url, {
+        httpsAgent,
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+        timeout: 8000
+      })
+
+      const $ = cheerio.load(html)
+      const title = $('title').text().trim()
+      const keywords = $('meta[name="keywords"]').attr('content') || ''
+      const description = $('meta[name="description"]').attr('content') || ''
+      const infoText = $(
+        '.module-info-tag, .module-info-item-content, .data, .text-muted, .item-status, .vod-info'
+      )
+        .text()
+        .trim()
+
+      const raw = `${title} ${keywords} ${description} ${infoText}`
+      const tokens = raw
+        .split(/[\s/|,，;；-]+/g)
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .map((s) => s.replace(/片$/g, ''))
+        .filter(Boolean)
+
+      const uniq: string[] = []
+      const seen = new Set<string>()
+      for (const t of tokens) {
+        if (seen.has(t)) continue
+        seen.add(t)
+        uniq.push(t)
+        if (uniq.length >= 30) break
+      }
+
+      return { tags: uniq }
+    } catch (e) {
+      return { tags: [] }
     }
   })
 

@@ -7,6 +7,7 @@ const api = {
   fetchMagnetLinks: (url: string) => ipcRenderer.invoke('fetch-magnet-links', url),
   fetchDiscoverMovies: (filters: any) => ipcRenderer.invoke('fetch-discover-movies', filters),
   fetchMovieDetails: (url: string) => ipcRenderer.invoke('fetch-movie-details', url),
+  fetchMovieMeta: (url: string) => ipcRenderer.invoke('fetch-movie-meta', url),
   scanLocalLibrary: (paths: string[]) => ipcRenderer.invoke('scan-local-library', paths),
   selectFolder: () => ipcRenderer.invoke('select-folder'),
   startDownload: (params: { playUrls: string[]; name: string; title: string; folderPath?: string }) =>

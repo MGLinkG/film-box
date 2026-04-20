@@ -22,7 +22,8 @@ import {
   ChevronDown,
   ChevronUp,
   FolderOpen,
-  Folder
+  Folder,
+  ShieldAlert
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
@@ -125,6 +126,53 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('movie_favorites', JSON.stringify(favorites))
   }, [favorites])
+
+  // Blocked Tags State
+  const [blockedTags, setBlockedTags] = useState<string[]>(() => {
+    const saved = localStorage.getItem('movie_blocked_tags')
+    if (saved) {
+      try {
+        return JSON.parse(saved)
+      } catch (e) {}
+    }
+    return []
+  })
+
+  useEffect(() => {
+    localStorage.setItem('movie_blocked_tags', JSON.stringify(blockedTags))
+  }, [blockedTags])
+
+  const [deepFilterEnabled, setDeepFilterEnabled] = useState<boolean>(() => {
+    const saved = localStorage.getItem('movie_deep_filter_enabled')
+    if (saved === 'true') return true
+    if (saved === 'false') return false
+    return false
+  })
+
+  useEffect(() => {
+    localStorage.setItem('movie_deep_filter_enabled', deepFilterEnabled ? 'true' : 'false')
+  }, [deepFilterEnabled])
+
+  const metaCacheRef = useRef<Map<string, string[]>>(new Map())
+
+  const normalizeFilterTag = (tag: string) => {
+    return tag.replace(/\s+/g, '').replace(/片$/g, '').trim()
+  }
+
+  const isMovieBlocked = (movie: any) => {
+    if (!blockedTags || blockedTags.length === 0) return false
+    const blocked = blockedTags.map(normalizeFilterTag)
+    const tags = Array.isArray(movie?.tags) ? movie.tags : movie?.tags ? [movie.tags] : []
+    const normalizedTags = tags
+      .filter(Boolean)
+      .map((t: string) => normalizeFilterTag(String(t)))
+      .filter(Boolean)
+    const titleText = `${movie?.titleZh || ''}${movie?.title || ''}`.replace(/\s+/g, '').trim()
+    return blocked.some((b) => {
+      if (b && titleText.includes(b)) return true
+      return normalizedTags.some((t) => t === b || t.includes(b) || b.includes(t))
+    })
+  }
 
   const [localPaths, setLocalPaths] = useState<string[]>(() => {
     const saved = localStorage.getItem('movie_local_paths')
@@ -547,7 +595,42 @@ export default function App() {
       // @ts-ignore - defined in preload.d.ts
       const response = await window.api.searchSites(query)
 
-      setResults(response.results)
+      let nextResults = response.results || []
+      if (deepFilterEnabled && blockedTags.length > 0) {
+        const batchSize = 5
+        const enriched = [...nextResults]
+        for (let i = 0; i < enriched.length; i += batchSize) {
+          const batch = enriched.slice(i, i + batchSize)
+          // @ts-ignore
+          const metas = await Promise.all(
+            batch.map(async (m: any) => {
+              const url = m?.url
+              if (!url) return { tags: [] }
+              const cached = metaCacheRef.current.get(url)
+              if (cached) return { tags: cached }
+              try {
+                // @ts-ignore
+                const meta = await window.api.fetchMovieMeta(url)
+                const tags = Array.isArray(meta?.tags) ? meta.tags : []
+                metaCacheRef.current.set(url, tags)
+                return { tags }
+              } catch {
+                metaCacheRef.current.set(url, [])
+                return { tags: [] }
+              }
+            })
+          )
+          for (let j = 0; j < batch.length; j++) {
+            const idx = i + j
+            const baseTags = Array.isArray(enriched[idx]?.tags) ? enriched[idx].tags : []
+            const extraTags = metas[j]?.tags || []
+            enriched[idx] = { ...enriched[idx], tags: [...baseTags, ...extraTags] }
+          }
+        }
+        nextResults = enriched
+      }
+
+      setResults(nextResults)
 
       if (response.authRequired) {
         setShowLoginPrompt(true)
@@ -706,8 +789,8 @@ export default function App() {
             {/* Results Grid (Shows when searching) */}
             {hasSearched && !isTranslating ? (
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-6">
-                {results.length > 0 ? (
-                  results.map((movie) => (
+                {results.filter((m) => !isMovieBlocked(m)).length > 0 ? (
+                  results.filter((m) => !isMovieBlocked(m)).map((movie) => (
                     <motion.button
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
@@ -881,7 +964,9 @@ export default function App() {
 
                 {/* Discover Results Grid */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-6">
-                  {discoverResults.map((movie) => (
+                {discoverResults
+                   .filter((m) => !isMovieBlocked(m))
+                  .map((movie) => (
                     <motion.button
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
@@ -1730,6 +1815,62 @@ export default function App() {
         >
           <div className="max-w-3xl mx-auto space-y-8">
             <h2 className="text-3xl font-bold tracking-tight">{t('settings')}</h2>
+
+            <div className="bg-surface rounded-xl border border-white/5 overflow-hidden">
+              <div className="p-6 border-b border-white/5 flex justify-between items-center">
+                <div>
+                  <h3 className="text-lg font-medium flex items-center gap-2">
+                    <ShieldAlert size={18} />
+                    内容过滤
+                  </h3>
+                  <p className="text-sm text-secondary mt-1">选中的标签类别将会在发现和搜索结果中被自动屏蔽</p>
+                </div>
+              </div>
+              <div className="p-6">
+                <div className="flex flex-wrap gap-2">
+                  {GENRES.filter((g) => g !== '全部').map((tag) => {
+                    const isBlocked = blockedTags.includes(tag)
+                    return (
+                      <button
+                        key={`block-${tag}`}
+                        onClick={() => {
+                          if (isBlocked) {
+                            setBlockedTags((prev) => prev.filter((t) => t !== tag))
+                          } else {
+                            setBlockedTags((prev) => [...prev, tag])
+                          }
+                        }}
+                        className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
+                          isBlocked
+                            ? 'bg-danger/20 text-danger border-danger/30 hover:bg-danger/30'
+                            : 'bg-white/5 text-secondary border-white/5 hover:text-white hover:bg-white/10'
+                        }`}
+                      >
+                        {tag} {isBlocked && <X size={14} className="inline ml-1 -mt-0.5" />}
+                      </button>
+                    )
+                  })}
+                </div>
+                <div className="mt-6 flex items-center justify-between gap-4 bg-white/5 border border-white/5 rounded-xl px-4 py-3">
+                  <div className="flex-1">
+                    <div className="text-sm font-medium text-white/90">深度过滤模式</div>
+                    <div className="text-xs text-secondary mt-1">
+                      搜索时会额外抓取详情页标签后再过滤，结果更准确但会变慢
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setDeepFilterEnabled((v) => !v)}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
+                      deepFilterEnabled
+                        ? 'bg-accent/10 border-accent text-accent hover:bg-accent/20'
+                        : 'bg-white/5 border-white/10 text-secondary hover:text-white hover:bg-white/10'
+                    }`}
+                  >
+                    {deepFilterEnabled ? '已开启' : '已关闭'}
+                  </button>
+                </div>
+              </div>
+            </div>
 
             <div className="bg-surface rounded-xl border border-white/5 overflow-hidden">
               <div className="p-6 border-b border-white/5 flex justify-between items-center">

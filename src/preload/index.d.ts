@@ -10,6 +10,7 @@ declare global {
       fetchMovieDetails: (
         url: string
       ) => Promise<{ onlineLinks: { name: string; urls: string[] }[]; magnetLinks: any[] }>
+      fetchMovieMeta: (url: string) => Promise<{ tags: string[] }>
       scanLocalLibrary: (
         paths: string[]
       ) => Promise<{ id: string; title: string; folderPath: string; episodes: number[]; fileCount: number }[]>

@@ -54,7 +54,20 @@ npm run build:mac
 npm run build:linux
 ```
 
-## ⚠️ 严正声明 (Disclaimer)
+## 🪟 Windows 一键配置 + 打包（推荐）
+
+在 Windows 上拉取代码后（无需提前安装 Node），直接：
+
+- 双击运行 [setup-win.cmd](scripts/setup-win.cmd)
+- 或在 PowerShell 中执行：
+
+```powershell
+npm run setup:win
+```
+
+脚本会自动安装/升级到 Node.js LTS（优先用 winget；若没有 winget 会自动下载官方 MSI 安装包），并设置 Electron 镜像加速后完成 Windows 安装包构建。
+
+## ⚠️ 免责声明 (Disclaimer)
 
 **本项目及相关代码仅供个人学习、技术研究与编程练习使用。**
 
@@ -70,4 +83,4 @@ npm run build:linux
 您可以在遵守上述免责声明的前提下，自由地使用、修改和分发本项目的源代码。但请注意，开源协议并不意味着授予您利用本项目从事任何违法、侵权或商业牟利活动的权利。
 
 ---
-*Created for personal learning and open-source sharing.*sharing._
+*Created for personal learning and open-source sharing.*
