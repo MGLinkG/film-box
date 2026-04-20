@@ -265,65 +265,6 @@ export default function App() {
   const [showLoginPrompt, setShowLoginPrompt] = useState(false)
   const [activeBrowserUrl, setActiveBrowserUrl] = useState<string | null>(null)
 
-  // Settings State
-  const [exportSuccess, setExportSuccess] = useState(false)
-  const [importSuccess, setImportSuccess] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
-
-  const handleExportConfig = () => {
-    try {
-      const config = {
-        language: i18n.language,
-        exportDate: new Date().toISOString(),
-        version: '1.0.0'
-      }
-
-      const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `movie-finder-config-${new Date().toISOString().split('T')[0]}.json`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
-
-      setExportSuccess(true)
-      setTimeout(() => setExportSuccess(false), 3000)
-    } catch (err) {
-      console.error('Failed to export config:', err)
-    }
-  }
-
-  const handleImportConfig = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file) return
-
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      try {
-        const content = e.target?.result as string
-        const config = JSON.parse(content)
-
-        if (config.language && ['zh', 'zh_TW', 'en'].includes(config.language)) {
-          i18n.changeLanguage(config.language)
-        }
-
-        setImportSuccess(true)
-        setTimeout(() => setImportSuccess(false), 3000)
-      } catch (err) {
-        console.error('Failed to import config:', err)
-        alert('配置文件格式错误，导入失败。')
-      }
-
-      // Reset input so the same file can be selected again if needed
-      if (fileInputRef.current) {
-        fileInputRef.current.value = ''
-      }
-    }
-    reader.readAsText(file)
-  }
-
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null)
 
   // Magnet Links Modal State
@@ -1489,50 +1430,26 @@ export default function App() {
             </div>
 
             <div className="bg-surface rounded-xl border border-white/5 overflow-hidden">
-              <div className="p-6 border-b border-white/5">
-                <h3 className="text-lg font-medium">配置管理</h3>
-                <p className="text-sm text-secondary mt-1">
-                  导入或导出您的片源网站和应用设置，防止丢失。
-                </p>
-              </div>
-              <div className="p-6 flex flex-wrap gap-4">
-                <button
-                  onClick={handleExportConfig}
-                  className="flex items-center gap-2 px-6 py-3 bg-white/5 hover:bg-white/10 text-white rounded-xl text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent border border-white/10"
-                >
-                  {exportSuccess ? (
-                    <Check size={18} className="text-green-400" aria-hidden="true" />
-                  ) : (
-                    <Download size={18} aria-hidden="true" />
-                  )}
-                  {exportSuccess ? '导出成功' : '导出配置文件 (.json)'}
-                </button>
-
-                <div>
-                  <input
-                    type="file"
-                    accept=".json"
-                    onChange={handleImportConfig}
-                    ref={fileInputRef}
-                    className="hidden"
-                    id="import-config"
-                  />
-                  <label
-                    htmlFor="import-config"
-                    className="flex items-center gap-2 px-6 py-3 bg-white text-black hover:bg-white/90 rounded-xl text-sm font-medium transition-all cursor-pointer focus-within:ring-2 focus-within:ring-accent focus-within:ring-offset-2 focus-within:ring-offset-surface"
-                  >
-                    {importSuccess ? (
-                      <Check size={18} aria-hidden="true" />
-                    ) : (
-                      <Upload size={18} aria-hidden="true" />
-                    )}
-                    {importSuccess ? '导入成功' : '从文件导入配置'}
-                  </label>
+                <div className="p-6 border-b border-white/5">
+                  <h3 className="text-lg font-medium text-danger flex items-center gap-2">
+                    <Info size={18} />
+                    免责声明 (Disclaimer)
+                  </h3>
+                </div>
+                <div className="p-6 text-sm text-secondary space-y-4 leading-relaxed">
+                  <p>
+                    <strong className="text-white">本项目及相关代码仅供个人学习、技术研究与编程练习使用。</strong>
+                  </p>
+                  <ul className="list-disc pl-5 space-y-2">
+                    <li><strong>资源版权：</strong>本项目本身不存储、不发布、不提供任何视频资源，所有数据均来自互联网公开网页的实时抓取。视频版权归原权利人所有。</li>
+                    <li><strong>禁止商业与非法用途：</strong>严禁将本项目用于任何商业牟利、非法传播、侵权盗版或其他违反当地法律法规的活动。</li>
+                    <li><strong>免责条款：</strong>使用者下载、运行或二次开发本项目即表示您已同意：<strong className="text-white/80">因使用本项目所产生的一切直接或间接的法律责任、版权纠纷及其他后果，均由使用者本人独立承担，项目原作者不承担任何责任。</strong></li>
+                    <li>若本项目在无意中侵犯了您的合法权益，请提交 Issue，我们将在核实后尽快删除相关功能代码。</li>
+                  </ul>
                 </div>
               </div>
             </div>
           </div>
-        </div>
 
         {/* Embedded Browser Modal */}
         <AnimatePresence>
