@@ -26,6 +26,7 @@ import {
   ShieldAlert
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { FavoritesExtendedSearchModal } from './components/FavoritesExtendedSearchModal'
 
 const CHANNELS = [
   { label: '电影', value: '1' },
@@ -459,6 +460,7 @@ export default function App() {
 
   // Removed copiedUrl state and handleCopyUrl function
   const [selectedMovie, setSelectedMovie] = useState<any>(null)
+  const [extendedSearchMovie, setExtendedSearchMovie] = useState<any>(null)
   const [resourceLinks, setResourceLinks] = useState<{ title: string; url: string }[]>([])
   const [isLoadingLinks, setIsLoadingLinks] = useState(false)
   const [copiedLink, setCopiedLink] = useState<string | null>(null)
@@ -816,12 +818,19 @@ export default function App() {
                         ) : (
                           <Film size={32} className="text-white/10" />
                         )}
-                        <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-md px-2 py-1 rounded-md border border-white/10 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all translate-y-1 group-hover:translate-y-0 duration-300">
-                          <Magnet size={12} className="text-accent" />
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setExtendedSearchMovie(movie)
+                          }}
+                          className="absolute top-2 right-2 bg-black/60 backdrop-blur-md px-2 py-1 rounded-md border border-white/10 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all translate-y-1 group-hover:translate-y-0 duration-300 hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                          title="扩展检索：自动匹配电影/OVA/相关季数"
+                        >
+                          <Search size={12} className="text-accent" />
                           <span className="text-[10px] font-bold uppercase tracking-wider text-white">
-                            Get Link
+                            扩展检索
                           </span>
-                        </div>
+                        </button>
                         <button
                           onClick={(e) => toggleFavorite(movie, e)}
                           className="absolute top-2 left-2 p-1.5 bg-black/60 backdrop-blur-md rounded-full border border-white/10 opacity-0 group-hover:opacity-100 transition-all translate-y-1 group-hover:translate-y-0 duration-300 hover:bg-white/20"
@@ -992,12 +1001,19 @@ export default function App() {
                         ) : (
                           <Film size={32} className="text-white/10" />
                         )}
-                        <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-md px-2 py-1 rounded-md border border-white/10 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all translate-y-1 group-hover:translate-y-0 duration-300">
-                          <Magnet size={12} className="text-accent" />
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setExtendedSearchMovie(movie)
+                          }}
+                          className="absolute top-2 right-2 bg-black/60 backdrop-blur-md px-2 py-1 rounded-md border border-white/10 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all translate-y-1 group-hover:translate-y-0 duration-300 hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                          title="扩展检索：自动匹配电影/OVA/相关季数"
+                        >
+                          <Search size={12} className="text-accent" />
                           <span className="text-[10px] font-bold uppercase tracking-wider text-white">
-                            Get Link
+                            扩展检索
                           </span>
-                        </div>
+                        </button>
                         <button
                           onClick={(e) => toggleFavorite(movie, e)}
                           className="absolute top-2 left-2 p-1.5 bg-black/60 backdrop-blur-md rounded-full border border-white/10 opacity-0 group-hover:opacity-100 transition-all translate-y-1 group-hover:translate-y-0 duration-300 hover:bg-white/20"
@@ -1301,12 +1317,19 @@ export default function App() {
                       ) : (
                         <Film size={32} className="text-white/10" />
                       )}
-                      <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-md px-2 py-1 rounded-md border border-white/10 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all translate-y-1 group-hover:translate-y-0 duration-300">
-                        <Magnet size={12} className="text-accent" />
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-white">
-                          Get Link
-                        </span>
-                      </div>
+                      <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setExtendedSearchMovie(movie)
+                          }}
+                          className="absolute top-2 right-2 bg-black/60 backdrop-blur-md px-2 py-1 rounded-md border border-white/10 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all translate-y-1 group-hover:translate-y-0 duration-300 hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                          title="扩展检索：自动匹配电影/OVA/相关季数"
+                        >
+                          <Search size={12} className="text-accent" />
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-white">
+                            扩展检索
+                          </span>
+                        </button>
                       <button
                         onClick={(e) => toggleFavorite(movie, e)}
                         className="absolute top-2 left-2 p-1.5 bg-black/60 backdrop-blur-md rounded-full border border-white/10 opacity-0 group-hover:opacity-100 transition-all translate-y-1 group-hover:translate-y-0 duration-300 hover:bg-white/20"
@@ -2006,6 +2029,14 @@ export default function App() {
           )}
         </AnimatePresence>
       </main>
+      <FavoritesExtendedSearchModal
+        movie={extendedSearchMovie}
+        onClose={() => setExtendedSearchMovie(null)}
+        onMovieClick={handleMovieClick}
+        favorites={favorites}
+        onToggleFavorite={toggleFavorite}
+        isMovieBlocked={isMovieBlocked}
+      />
     </div>
   )
 }
