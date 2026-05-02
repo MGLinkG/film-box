@@ -1,16 +1,19 @@
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Outfit:wght@300;400;500;600;800&display=swap');
-@import 'tailwindcss';
+import os
+
+main_css = """@import 'tailwindcss';
 
 @theme {
   --color-background: #020202;
   --color-surface: #0a0a0a;
   --color-primary: #ffffff;
   --color-secondary: #999999;
-  --color-accent: #E50914;
+  --color-accent: #E50914; /* Cinematic Red */
   --color-danger: #ff3333;
 }
 
 @layer base {
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Outfit:wght@300;400;500;600;800&display=swap');
+
   body {
     background-color: var(--color-background);
     color: var(--color-primary);
@@ -22,6 +25,7 @@
     background-attachment: fixed;
   }
 
+  /* Cinematic Grain */
   body::before {
     content: "";
     position: fixed;
@@ -36,3 +40,12 @@
     font-family: 'Cormorant Garamond', serif;
   }
 }
+"""
+
+base_css = ""
+
+with open('src/renderer/src/assets/main.css', 'w', encoding='utf-8') as f:
+    f.write(main_css)
+
+with open('src/renderer/src/assets/base.css', 'w', encoding='utf-8') as f:
+    f.write(base_css)

@@ -661,6 +661,14 @@ app.whenReady().then(() => {
     }
   })
 
+  ipcMain.handle('get-app-version', () => {
+    return app.getVersion()
+  })
+
+  ipcMain.handle('open-external', (_, url: string) => {
+    shell.openExternal(url)
+  })
+
   createWindow()
 
   app.on('activate', function () {

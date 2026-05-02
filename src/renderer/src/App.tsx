@@ -143,6 +143,48 @@ export default function App() {
     localStorage.setItem('movie_blocked_tags', JSON.stringify(blockedTags))
   }, [blockedTags])
 
+  const [updateRepo, setUpdateRepo] = useState(() => localStorage.getItem('movie_update_repo') || '')
+  const [updateStatus, setUpdateStatus] = useState<{
+    loading: boolean
+    error: string | null
+    result: any | null
+  }>({ loading: false, error: null, result: null })
+  const [appVersion, setAppVersion] = useState('')
+
+  useEffect(() => {
+    // @ts-ignore
+    window.api.getAppVersion().then(setAppVersion).catch(() => {})
+  }, [])
+
+  const handleCheckUpdate = async () => {
+    if (!updateRepo) return
+    setUpdateStatus({ loading: true, error: null, result: null })
+    try {
+      const match = updateRepo.match(/github\.com\/([^\/]+)\/([^\/]+)/)
+      if (!match) {
+        throw new Error('请输入有效的 GitHub 仓库地址 (例如: https://github.com/user/repo)')
+      }
+      const owner = match[1]
+      const repo = match[2].replace(/\.git$/, '')
+      
+      const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/latest`)
+      if (!res.ok) {
+        if (res.status === 404) throw new Error('未找到发布版本 (Release)')
+        if (res.status === 403) throw new Error('API 频率限制或仓库私有')
+        throw new Error('网络请求失败')
+      }
+      const data = await res.json()
+      
+      setUpdateStatus({
+        loading: false,
+        error: null,
+        result: data
+      })
+    } catch(e: any) {
+      setUpdateStatus({ loading: false, error: e.message, result: null })
+    }
+  }
+
   const [deepFilterEnabled, setDeepFilterEnabled] = useState<boolean>(() => {
     const saved = localStorage.getItem('movie_deep_filter_enabled')
     if (saved === 'true') return true
@@ -649,12 +691,12 @@ export default function App() {
   return (
     <div className="flex h-screen w-full bg-background text-primary overflow-hidden">
       {/* Sidebar */}
-      <div className="w-64 bg-surface border-r border-white/5 flex flex-col p-4 z-10">
-        <div className="flex items-center gap-3 mb-12">
-          <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center">
+      <div className="w-72 bg-black/40 backdrop-blur-3xl border-r border-white/5 flex flex-col p-8 z-10 shadow-2xl relative">
+        <div className="flex items-center gap-4 mb-16">
+          <div className="w-10 h-10 rounded-sm bg-accent flex items-center justify-center shadow-[0_0_20px_rgba(229,9,20,0.4)]">
             <Film size={18} className="text-white" />
           </div>
-          <h1 className="text-lg font-semibold tracking-tight">MovieFinder</h1>
+          <h1 className="text-2xl font-serif font-bold tracking-widest uppercase text-white">CinéFind</h1>
         </div>
 
         <nav className="flex-1 space-y-2">
@@ -726,7 +768,7 @@ export default function App() {
             {/* Search Header */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <h2 className="text-3xl font-bold tracking-tight">发现影视</h2>
+                <h2 className="text-5xl font-serif italic tracking-wide text-white/90">发现影视</h2>
                 <button
                   onClick={() => {
                     if (hasSearched) {
@@ -765,12 +807,12 @@ export default function App() {
                   }}
                   onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                   placeholder={t('searchPlaceholder')}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl py-4 pl-12 pr-4 text-white placeholder-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus:border-transparent transition-all"
+                  className="w-full bg-transparent border-b-2 border-white/10 py-6 pl-14 pr-4 text-3xl font-serif text-white placeholder-white/20 focus:outline-none focus:border-accent transition-all rounded-none"
                 />
                 <button
                   onClick={handleSearch}
                   disabled={isTranslating || !query.trim()}
-                  className="absolute inset-y-2 right-2 px-6 bg-white text-black font-medium rounded-lg hover:bg-white/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                  className="absolute inset-y-4 right-0 px-8 bg-accent text-white tracking-widest uppercase font-medium rounded-sm hover:bg-accent/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_20px_rgba(229,9,20,0.3)] hover:shadow-[0_0_30px_rgba(229,9,20,0.6)]"
                 >
                   {t('search')}
                 </button>
@@ -797,11 +839,11 @@ export default function App() {
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       key={movie.id}
-                      className="group relative flex flex-col rounded-xl overflow-hidden bg-surface border border-white/5 hover:border-white/20 hover:bg-white/[0.02] transition-all cursor-pointer text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                      className="group relative flex flex-col rounded-sm overflow-hidden bg-transparent border border-transparent hover:border-white/10 transition-all duration-500 cursor-pointer text-left focus-visible:outline-none hover:shadow-2xl"
                       onClick={() => handleMovieClick(movie)}
                       aria-label={`View details for ${movie.title}`}
                     >
-                      <div className="aspect-[2/3] w-full relative bg-black/40 flex items-center justify-center overflow-hidden">
+                      <div className="aspect-[2/3] w-full relative bg-black flex items-center justify-center overflow-hidden border border-white/5 rounded-sm">
                         {movie.poster ? (
                           <img
                             src={movie.poster}
@@ -852,7 +894,7 @@ export default function App() {
                       </div>
                       <div className="p-4 flex flex-col flex-1 w-full">
                         <h3
-                          className="text-sm font-bold text-white mb-1 line-clamp-1"
+                          className="text-lg font-serif text-white/90 mb-1 line-clamp-1 group-hover:text-accent transition-colors"
                           style={{ textWrap: 'balance' }}
                         >
                           {i18n.language === 'zh' || i18n.language === 'zh_TW'
@@ -874,7 +916,7 @@ export default function App() {
             ) : (
               <>
                 {/* Filters */}
-                <div className="bg-surface border border-white/5 rounded-xl p-6 space-y-4">
+                <div className="bg-transparent border-t border-b border-white/10 py-6 space-y-4 my-8">
                   <div className="flex items-center gap-4">
                     <span className="text-secondary text-sm font-medium w-12 shrink-0">频道</span>
                     <div className="flex flex-wrap gap-2">
@@ -890,7 +932,7 @@ export default function App() {
                             setDiscoverFilters(newFilters)
                             handleFetchDiscoverMovies(1, newFilters)
                           }}
-                          className={`px-3 py-1.5 rounded-lg text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${discoverFilters.channel === c.value ? 'bg-accent text-white font-medium' : 'text-secondary hover:bg-white/5 hover:text-white'}`}
+                          className={`px-3 py-1.5 rounded-sm text-sm tracking-wide transition-all focus-visible:outline-none border-b-2 ${discoverFilters.channel === ((c as any).value || c) ? "border-accent text-white font-medium" : "border-transparent text-secondary hover:border-white/20 hover:text-white"}`}
                         >
                           {c.label}
                         </button>
@@ -908,7 +950,7 @@ export default function App() {
                             setDiscoverFilters(newFilters)
                             handleFetchDiscoverMovies(1, newFilters)
                           }}
-                          className={`px-3 py-1.5 rounded-lg text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${discoverFilters.type === c ? 'bg-accent text-white font-medium' : 'text-secondary hover:bg-white/5 hover:text-white'}`}
+                          className={`px-3 py-1.5 rounded-sm text-sm tracking-wide transition-all focus-visible:outline-none border-b-2 ${discoverFilters.type === ((c as any).value || c) ? "border-accent text-white font-medium" : "border-transparent text-secondary hover:border-white/20 hover:text-white"}`}
                         >
                           {c}
                         </button>
@@ -926,7 +968,7 @@ export default function App() {
                             setDiscoverFilters(newFilters)
                             handleFetchDiscoverMovies(1, newFilters)
                           }}
-                          className={`px-3 py-1.5 rounded-lg text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${discoverFilters.region === c ? 'bg-accent text-white font-medium' : 'text-secondary hover:bg-white/5 hover:text-white'}`}
+                          className={`px-3 py-1.5 rounded-sm text-sm tracking-wide transition-all focus-visible:outline-none border-b-2 ${discoverFilters.region === ((c as any).value || c) ? "border-accent text-white font-medium" : "border-transparent text-secondary hover:border-white/20 hover:text-white"}`}
                         >
                           {c}
                         </button>
@@ -944,7 +986,7 @@ export default function App() {
                             setDiscoverFilters(newFilters)
                             handleFetchDiscoverMovies(1, newFilters)
                           }}
-                          className={`px-3 py-1.5 rounded-lg text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${discoverFilters.year === c ? 'bg-accent text-white font-medium' : 'text-secondary hover:bg-white/5 hover:text-white'}`}
+                          className={`px-3 py-1.5 rounded-sm text-sm tracking-wide transition-all focus-visible:outline-none border-b-2 ${discoverFilters.year === ((c as any).value || c) ? "border-accent text-white font-medium" : "border-transparent text-secondary hover:border-white/20 hover:text-white"}`}
                         >
                           {c}
                         </button>
@@ -962,7 +1004,7 @@ export default function App() {
                             setDiscoverFilters(newFilters)
                             handleFetchDiscoverMovies(1, newFilters)
                           }}
-                          className={`px-3 py-1.5 rounded-lg text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${discoverFilters.sort === c.value ? 'bg-accent text-white font-medium' : 'text-secondary hover:bg-white/5 hover:text-white'}`}
+                          className={`px-3 py-1.5 rounded-sm text-sm tracking-wide transition-all focus-visible:outline-none border-b-2 ${discoverFilters.sort === ((c as any).value || c) ? "border-accent text-white font-medium" : "border-transparent text-secondary hover:border-white/20 hover:text-white"}`}
                         >
                           {c.label}
                         </button>
@@ -980,11 +1022,11 @@ export default function App() {
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       key={movie.id}
-                      className="group relative flex flex-col rounded-xl overflow-hidden bg-surface border border-white/5 hover:border-white/20 hover:bg-white/[0.02] transition-all cursor-pointer text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                      className="group relative flex flex-col rounded-sm overflow-hidden bg-transparent border border-transparent hover:border-white/10 transition-all duration-500 cursor-pointer text-left focus-visible:outline-none hover:shadow-2xl"
                       onClick={() => handleMovieClick(movie)}
                       aria-label={`View details for ${movie.title}`}
                     >
-                      <div className="aspect-[2/3] w-full relative bg-black/40 flex items-center justify-center overflow-hidden">
+                      <div className="aspect-[2/3] w-full relative bg-black flex items-center justify-center overflow-hidden border border-white/5 rounded-sm">
                         {movie.poster ? (
                           <img
                             src={movie.poster}
@@ -1035,7 +1077,7 @@ export default function App() {
                       </div>
                       <div className="p-4 flex flex-col flex-1 w-full">
                         <h3
-                          className="text-sm font-bold text-white mb-1 line-clamp-1"
+                          className="text-lg font-serif text-white/90 mb-1 line-clamp-1 group-hover:text-accent transition-colors"
                           style={{ textWrap: 'balance' }}
                         >
                           {i18n.language === 'zh' || i18n.language === 'zh_TW'
@@ -1087,7 +1129,7 @@ export default function App() {
                 initial={{ scale: 0.95, opacity: 0, y: 20 }}
                 animate={{ scale: 1, opacity: 1, y: 0 }}
                 exit={{ scale: 0.95, opacity: 0, y: 20 }}
-                className="bg-surface border border-white/10 rounded-2xl w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden shadow-2xl"
+                className="bg-[#0a0a0a] border border-white/10 rounded-sm w-full max-w-4xl max-h-[85vh] flex flex-col overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.8)]"
               >
                 <div className="flex justify-between items-center p-6 border-b border-white/5 bg-white/[0.02]">
                   <div className="flex items-center gap-3">
@@ -1128,7 +1170,7 @@ export default function App() {
                       <img
                         src={selectedMovie.poster}
                         alt={selectedMovie.title}
-                        className="w-full rounded-xl object-cover shadow-lg border border-white/5 aspect-[2/3]"
+                        className="w-full rounded-sm object-cover shadow-[0_0_30px_rgba(0,0,0,0.5)] border border-white/10 aspect-[2/3]"
                         onError={(e) => {
                           ;(e.target as HTMLImageElement).style.display = 'none'
                         }}
@@ -1276,7 +1318,7 @@ export default function App() {
           className={`flex-1 overflow-y-auto p-8 lg:p-12 ${activeTab === 'favorites' ? 'block' : 'hidden'}`}
         >
           <div className="max-w-7xl mx-auto space-y-8">
-            <h2 className="text-3xl font-bold tracking-tight">我的收藏</h2>
+            <h2 className="text-5xl font-serif italic tracking-wide text-white/90">我的收藏</h2>
 
             {favorites.length === 0 ? (
               <div className="p-16 flex flex-col items-center justify-center text-secondary bg-surface rounded-xl border border-white/5 shadow-sm">
@@ -1296,11 +1338,11 @@ export default function App() {
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     key={`fav-${movie.id}`}
-                    className="group relative flex flex-col rounded-xl overflow-hidden bg-surface border border-white/5 hover:border-white/20 hover:bg-white/[0.02] transition-all cursor-pointer text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                    className="group relative flex flex-col rounded-sm overflow-hidden bg-transparent border border-transparent hover:border-white/10 transition-all duration-500 cursor-pointer text-left focus-visible:outline-none hover:shadow-2xl"
                     onClick={() => handleMovieClick(movie)}
                     aria-label={`View details for ${movie.title}`}
                   >
-                    <div className="aspect-[2/3] w-full relative bg-black/40 flex items-center justify-center overflow-hidden">
+                    <div className="aspect-[2/3] w-full relative bg-black flex items-center justify-center overflow-hidden border border-white/5 rounded-sm">
                       {movie.poster ? (
                         <img
                           src={movie.poster}
@@ -1351,7 +1393,7 @@ export default function App() {
                     </div>
                     <div className="p-4 flex flex-col flex-1 w-full">
                       <h3
-                        className="text-sm font-bold text-white mb-1 line-clamp-1"
+                        className="text-lg font-serif text-white/90 mb-1 line-clamp-1 group-hover:text-accent transition-colors"
                         style={{ textWrap: 'balance' }}
                       >
                         {i18n.language === 'zh' || i18n.language === 'zh_TW'
@@ -1371,7 +1413,7 @@ export default function App() {
         >
           <div className="max-w-6xl mx-auto space-y-8">
             <div className="flex items-center justify-between">
-              <h2 className="text-3xl font-bold tracking-tight">本地资源</h2>
+              <h2 className="text-5xl font-serif italic tracking-wide text-white/90">本地资源</h2>
               <div className="flex items-center gap-3">
                 <button
                   onClick={async () => {
@@ -1558,7 +1600,7 @@ export default function App() {
         >
           <div className="max-w-4xl mx-auto space-y-8">
             <div className="flex items-center justify-between">
-              <h2 className="text-3xl font-bold tracking-tight">下载管理</h2>
+              <h2 className="text-5xl font-serif italic tracking-wide text-white/90">下载管理</h2>
               <div className="flex items-center gap-3">
                 {downloads.some(
                   (d) =>
@@ -1837,7 +1879,7 @@ export default function App() {
           className={`flex-1 overflow-y-auto p-8 lg:p-12 ${activeTab === 'settings' ? 'block' : 'hidden'}`}
         >
           <div className="max-w-3xl mx-auto space-y-8">
-            <h2 className="text-3xl font-bold tracking-tight">{t('settings')}</h2>
+            <h2 className="text-5xl font-serif italic tracking-wide text-white/90">{t('settings')}</h2>
 
             <div className="bg-surface rounded-xl border border-white/5 overflow-hidden">
               <div className="p-6 border-b border-white/5 flex justify-between items-center">
@@ -1892,6 +1934,105 @@ export default function App() {
                     {deepFilterEnabled ? '已开启' : '已关闭'}
                   </button>
                 </div>
+              </div>
+            </div>
+
+            <div className="bg-surface rounded-xl border border-white/5 overflow-hidden">
+              <div className="p-6 border-b border-white/5">
+                <h3 className="text-lg font-medium flex items-center gap-2">
+                  <DownloadCloud size={18} />
+                  检查更新
+                </h3>
+                <p className="text-sm text-secondary mt-1">输入 GitHub 仓库地址拉取最新版本</p>
+              </div>
+              <div className="p-6 space-y-4">
+                <div className="flex items-center gap-3">
+                  <input
+                    type="text"
+                    value={updateRepo}
+                    onChange={(e) => {
+                      setUpdateRepo(e.target.value)
+                      localStorage.setItem('movie_update_repo', e.target.value)
+                      setUpdateStatus({ loading: false, error: null, result: null })
+                    }}
+                    placeholder="https://github.com/用户名/项目名"
+                    className="flex-1 bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-sm text-white focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all"
+                  />
+                  <button
+                    onClick={handleCheckUpdate}
+                    disabled={updateStatus.loading || !updateRepo}
+                    className="px-4 py-2 bg-accent hover:bg-accent/90 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                    {updateStatus.loading ? <RefreshCw size={16} className="animate-spin" /> : <Search size={16} />}
+                    检查
+                  </button>
+                </div>
+
+                {appVersion && (
+                  <div className="text-xs text-secondary">
+                    当前版本: v{appVersion}
+                  </div>
+                )}
+
+                {updateStatus.error && (
+                  <div className="text-sm text-red-400 p-3 bg-red-400/10 rounded-lg">
+                    {updateStatus.error}
+                  </div>
+                )}
+
+                {updateStatus.result && (
+                  <div className="mt-4 p-4 border border-white/10 rounded-xl bg-white/5 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-base font-bold text-white">
+                          发现新版本: {updateStatus.result.tag_name}
+                        </div>
+                        <div className="text-xs text-secondary mt-1">
+                          发布时间: {new Date(updateStatus.result.published_at).toLocaleDateString()}
+                        </div>
+                      </div>
+                      {updateStatus.result.tag_name.replace(/^v/, '') === appVersion.replace(/^v/, '') && (
+                        <div className="px-2 py-1 bg-green-500/20 text-green-400 text-xs rounded border border-green-500/20">
+                          已是最新
+                        </div>
+                      )}
+                    </div>
+                    
+                    {updateStatus.result.body && (
+                      <div className="text-sm text-secondary whitespace-pre-wrap bg-black/20 p-3 rounded-lg max-h-40 overflow-y-auto">
+                        {updateStatus.result.body}
+                      </div>
+                    )}
+
+                    <div className="flex flex-wrap gap-2 pt-2">
+                      {updateStatus.result.assets?.map((asset: any) => (
+                        <button
+                          key={asset.id}
+                          onClick={() => {
+                            // @ts-ignore
+                            window.api.openExternal(asset.browser_download_url)
+                          }}
+                          className="flex items-center gap-2 px-3 py-1.5 bg-white/10 hover:bg-white/20 border border-white/5 rounded-lg text-xs text-white transition-colors"
+                        >
+                          <DownloadCloud size={14} />
+                          下载 {asset.name}
+                        </button>
+                      ))}
+                      {(!updateStatus.result.assets || updateStatus.result.assets.length === 0) && (
+                         <button
+                          onClick={() => {
+                            // @ts-ignore
+                            window.api.openExternal(updateStatus.result.html_url)
+                          }}
+                          className="flex items-center gap-2 px-3 py-1.5 bg-white/10 hover:bg-white/20 border border-white/5 rounded-lg text-xs text-white transition-colors"
+                        >
+                          <ExternalLink size={14} />
+                          前往 Release 页面
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 

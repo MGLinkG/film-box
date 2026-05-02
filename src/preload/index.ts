@@ -17,6 +17,8 @@ const api = {
   resumeDownload: (id: string) => ipcRenderer.invoke('resume-download', id),
   cancelDownload: (id: string) => ipcRenderer.invoke('cancel-download', id),
   showItemInFolder: (path: string) => ipcRenderer.invoke('show-item-in-folder', path),
+  getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+  openExternal: (url: string) => ipcRenderer.invoke('open-external', url),
   onDownloadProgress: (callback: (data: any) => void) => {
     ipcRenderer.on('download-progress', (_event, value) => callback(value))
   }

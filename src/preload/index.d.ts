@@ -26,6 +26,8 @@ declare global {
       resumeDownload: (id: string) => Promise<boolean>
       cancelDownload: (id: string) => Promise<boolean>
       showItemInFolder: (path: string) => void
+      getAppVersion: () => Promise<string>
+      openExternal: (url: string) => Promise<void>
       onDownloadProgress: (callback: (data: any) => void) => void
     }
   }
